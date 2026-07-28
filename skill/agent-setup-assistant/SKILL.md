@@ -1,6 +1,6 @@
 ---
 name: agent-setup-assistant
-description: Runs TriFold's Agent Setup Assistant inside Claude Cowork — the precondition Go/No-Go check, the guided Hebrew intake, file generation, the live smoke test, and training/close for a client's personal-productivity-agent deployment (PRD: PRD-Agent-Setup-Assistant-EN.md). Use when the user (Itzik, the implementer) says "start setup for client [name]", "check preconditions for [name]" / "precondition check for [name]", "send precondition email for [name]", "run intake for [name]", "generate files for [name]", "run smoke test for [name]", or "train and close for [name]". Current scope: Flow 5.1 (precondition check + No-Go email), Flow 5.2 (guided intake), Flow 5.3 (file generation + validation), Flow 5.4 (smoke test), and Flow 5.5 (training and close), all with an implementer-only phase timer (FR-11) and resume-on-interruption running throughout — this closes the PRD §11 v0 build order except its git-dependent items. Flow 5.6 is not yet implemented, see Scope below.
+description: Runs TriFold's Agent Setup Assistant inside Claude Cowork — the precondition Go/No-Go check, the guided Hebrew intake, file generation, the live smoke test, training/close, post-go-live reconfiguration, and restore-to-known-good for a client's personal-productivity-agent deployment (PRD: PRD-Agent-Setup-Assistant-EN.md). Use when the user (Itzik, the implementer) says "start setup for client [name]", "check preconditions for [name]" / "precondition check for [name]", "send precondition email for [name]", "run intake for [name]", "generate files for [name]", "run smoke test for [name]", "train and close for [name]", "reconfigure [name]" / "update [name]'s agent", "restore [name] to known-good", or "bump template version to [X.Y]" / "check for stale clients". Current scope: Flow 5.1 (precondition check + No-Go email), Flow 5.2 (guided intake), Flow 5.3 (file generation + validation), Flow 5.4 (smoke test), Flow 5.5 (training and close), and Flow 5.6 (reconfiguration), all with an implementer-only phase timer (FR-11) and resume-on-interruption running throughout the 90-minute setup session — plus git-backed version tagging (FR-10, FR-13) and restore-to-known-good (FR-14). This closes every functional requirement in PRD §6.
 ---
 
 # Agent Setup Assistant
@@ -9,7 +9,7 @@ Implements the TriFold Agent Setup Assistant described in `PRD-Agent-Setup-Assis
 
 ## Scope of this file
 
-This file currently implements **Flow 5.1 (Precondition Check)**, **Flow 5.2 (Guided Intake)**, **Flow 5.3 (File Generation and Validation)**, **Flow 5.4 (Smoke Test)**, and **Flow 5.5 (Training and Close)**, per the PRD §11 build order, steps 2–5, plus step 6's implementer-only phase timer (FR-11) and resume-on-interruption (NFR), which run across all five flows rather than being their own flow. That closes the v0 build order except its git-dependent items (FR-10, FR-13's git-tag half; FR-14 and Flow 5.6 are v0.1 per §12). Flow 5.6 is listed below for orientation but is **not built yet** — do not attempt to run it from this file; point the implementer back to the PRD and the build order instead.
+This file implements **Flow 5.1 (Precondition Check)**, **Flow 5.2 (Guided Intake)**, **Flow 5.3 (File Generation and Validation)**, **Flow 5.4 (Smoke Test)**, **Flow 5.5 (Training and Close)**, and **Flow 5.6 (Reconfiguration, post go-live)** — the full PRD §11 v0 build order plus the v0.1 items from §12 (Flow 5.6, FR-14, and the FR-10/FR-13 git work that was blocked pending a git repository and is blocked no longer). This closes every FR in PRD §6.
 
 | Flow | PRD § | Status |
 |---|---|---|
@@ -18,11 +18,15 @@ This file currently implements **Flow 5.1 (Precondition Check)**, **Flow 5.2 (Gu
 | 5.3 File Generation and Validation | §5.3 | **Implemented (this file)** |
 | 5.4 Smoke Test | §5.4 | **Implemented (this file)** |
 | 5.5 Training and Close | §5.5 | **Implemented (this file)** |
-| 5.6 Reconfiguration (post go-live) | §5.6 | Not yet built |
+| 5.6 Reconfiguration (post go-live) | §5.6 | **Implemented (this file)** |
 
-**Cross-cutting, runs through all of 5.1–5.5**: an implementer-only phase timer against the §2 schedule (FR-11) and resume-on-interruption (NFR). Both are mechanisms, not separate flows — see the Boot context step below for resume, and each flow's steps for where a timer note or a progress-file checkpoint gets written. Neither is duplicated per-row in the table above.
+**Cross-cutting, runs through all of 5.1–5.5**: an implementer-only phase timer against the §2 schedule (FR-11) and resume-on-interruption (NFR). Both are mechanisms, not separate flows — see the Boot context step below for resume, and each flow's steps for where a timer note or a progress-file checkpoint gets written. Neither is duplicated per-row in the table above. **Flow 5.6 runs outside the 90-minute session** (it's post-go-live and asynchronous), so it carries no timer note and writes no `.session-progress.md` checkpoint — see "What this phase does NOT do."
 
-If invoked as "start setup for client [name]" (the full-session entry point, FR-1): run Flow 5.1. On **NO-GO**, stop with the gap list and the IT email offer, as before. On **GO**, continue straight into Flow 5.2; once all seven questions are confirmed, continue straight into Flow 5.3. On a successful write, continue straight into Flow 5.4, then Flow 5.5, ending the session with the setup report and a note that Flow 5.6 (reconfiguration) is not built yet. On a blocked Flow 5.3 validation, stop with the gap list — do not offer the approval prompt, and do not continue into 5.4/5.5.
+**Also cross-cutting, git-backed (FR-10, FR-13, FR-14)**: every validated write (Flow 5.3's write, a Flow 5.4 rerun that edits Voice, Flow 5.5's report, Flow 5.6's update) is committed locally and tagged `known-good-<slug>-<short-hash>`; pushing to `origin` is always a separate explicit prompt, never automatic. A standalone template-version-bump operation (FR-10) is documented after Flow 5.6. FR-14 (restore) is documented after that, and never touches git — see each section for detail.
+
+If invoked as "start setup for client [name]" (the full-session entry point, FR-1): run Flow 5.1. On **NO-GO**, stop with the gap list and the IT email offer, as before. On **GO**, continue straight into Flow 5.2; once all seven questions are confirmed, continue straight into Flow 5.3. On a successful write, continue straight into Flow 5.4, then Flow 5.5, ending the session with the setup report and the single end-of-session push-to-origin prompt. On a blocked Flow 5.3 validation, stop with the gap list — do not offer the approval prompt, and do not continue into 5.4/5.5.
+
+Flow 5.6 (reconfiguration), the template-version-bump operation (FR-10), and restore-to-known-good (FR-14) are **not** part of this chain — they're invoked standalone, post-go-live, per their own trigger phrases below.
 
 ## Boot context
 
@@ -41,6 +45,9 @@ Before running anything, read:
 - **"generate files for [name]"** — standalone entry into Flow 5.3 for when the Intake Record was already confirmed in an earlier session. The implementer restates the confirmed 7-item Intake Record (and the required-connector list from the original precondition check, for the connector-match validation); Flow 5.2 is not re-run.
 - **"run smoke test for [name]"** — standalone entry into Flow 5.4 for when the four files already exist at `clients/<slug>/` from an earlier session. The implementer restates (or this file re-derives from the sensitivity guard capture if it exists) the smoke test's input scope; Flow 5.3 is not re-run.
 - **"train and close for [name]"** — standalone entry into Flow 5.5 for when a Smoke Test Log already exists from an earlier session. The implementer restates the smoke test outcome; Flow 5.4 is not re-run.
+- **"reconfigure [name]"** / **"update [name]'s agent"** — Flow 5.6, post-go-live. Requires the client's four files to already exist at `clients/<slug>/`.
+- **"restore [name] to known-good"** — FR-14, post-go-live. Requires `clients/<slug>/.snapshots/` to already contain a saved snapshot.
+- **"bump template version to [X.Y]"** / **"check for stale clients"** — FR-10, standalone, not tied to any one client.
 
 In every case, no further prompting is needed to *start* (FR-1) — but Flow 5.1 itself needs three inputs from the implementer before it can produce a result, since there is no persisted intake record to supply them from on a first run. Ask for these up front, together, one message:
 
@@ -238,9 +245,10 @@ Only after explicit approval:
 
 1. Create `clients/<slug>/` if it does not already exist.
 2. Write the four files (CLAUDE.md, PROFILE.md, BOUNDARIES.md, STATE.md) into it.
-3. Add or update the client's row in `registry.md`: Client, Slug, Template Version, Setup Date, Last Updated, Status. Record Template Version as `unreleased (no git repo yet)` — this working directory is not yet a git repository, so there is no tagged version to reference (see What this phase does NOT do).
-4. Save a snapshot copy of the four just-written files into `clients/<slug>/.snapshots/` (FR-13, local half — this is one of the two "validated change" checkpoints that get a snapshot; Flow 5.5's close is the other). No git tag here — still deferred, see What this phase does NOT do.
-5. Update `clients/<slug>/.session-progress.md` (checkpoint: "files written and snapshotted").
+3. Add or update the client's row in `registry.md`: Client, Slug, Template Version, Setup Date, Last Updated, Status. Record Template Version as the current `template-vX.Y` tag (`git tag -l "template-v*" --sort=-v:refname | head -1`, or ask the implementer if git is unavailable).
+4. Save a snapshot copy of the four just-written files into `clients/<slug>/.snapshots/` (FR-13, local half — this is one of the two "validated change" checkpoints that get a snapshot; Flow 5.5's close is the other).
+5. Commit CLAUDE.md, PROFILE.md, BOUNDARIES.md, and STATE.md (this one time only, while it's still skeleton — see the git-backed cross-cutting note above and "What this phase does NOT do" for why STATE.md is never re-committed after this) under `clients/<slug>/` to git, with a message stating this is the initial setup for `<client>` against `template-vX.Y`. Tag that commit `known-good-<slug>-<short-hash>` (`git rev-parse --short HEAD` right after the commit). Do not push yet — pushing happens once, at the end of Flow 5.5.
+6. Update `clients/<slug>/.session-progress.md` (checkpoint: "files written, committed, and snapshotted").
 
 No write, of any file, happens before Step 4's explicit approval.
 
@@ -268,9 +276,9 @@ Actually run "Morning open" / "פתח את הבוקר" (`CLAUDE.md` → Routines
 
 Produce one email draft (e.g. a reply to something Step 3 surfaced). Show it to the client and ask them to rate it against the three Voice words from Intake Q4 — does it read the way those three words describe.
 
-- **Pass**: record the rating and move to Step 5.
+- **Pass**: record the rating and move to Step 5. If a Voice edit landed on the way to this pass (see Fail below), commit `clients/<slug>/PROFILE.md` to git now (message: what the smoke test surfaced and what changed) and tag `known-good-<slug>-<short-hash>` — this is the "approved smoke test" validated-change checkpoint from PRD 5.6. Do not push yet.
 - **Fail**: edit the client's `PROFILE.md` Voice section to address the specific gap the client named, then rerun the draft. Allow up to two reruns (three attempts total).
-- **Still failing after the second rerun**: do not block — log it as an unresolved finding to carry into Flow 5.5's setup report as a candidate "first action for next week," and move to Step 5 anyway.
+- **Still failing after the second rerun**: do not block — log it as an unresolved finding to carry into Flow 5.5's setup report as a candidate "first action for next week," and move to Step 5 anyway. Any Voice edit already made stays in the file but is uncommitted — it's not a passed validation, so it does not get a `known-good` tag; Flow 5.5's report will flag it for follow-up instead.
 
 After each of Steps 1–4, update `clients/<slug>/.session-progress.md` (Current flow: 5.4; checkpoint: which step, e.g. "Test 2 attempt 2 failed" / "Test 1 passed").
 
@@ -339,17 +347,115 @@ This report is shared between TriFold and <client> only. Do not send it to the c
 
 1. Write the report to `clients/<slug>/setup-report.md`.
 2. Update the client's `registry.md` row (Last Updated, Status).
-3. Save a snapshot of the four files — now including STATE.md's real content — into `clients/<slug>/.snapshots/` (FR-13, local half; the other checkpoint is Flow 5.3 Step 5). No git tag here either — still deferred, see What this phase does NOT do.
-4. Update `clients/<slug>/.session-progress.md`: append `Session complete: total <elapsed since the session-start time> vs 90 min target` and set `Current flow: complete`.
+3. Save a snapshot of the four files — now including STATE.md's real content — into `clients/<slug>/.snapshots/` (FR-13, local half; the other checkpoint is Flow 5.3 Step 5). This snapshot is local only, per FR-13/FR-14's dual-layer design (see FR-14 below) — it is never committed to git, and it's the one place STATE.md's real content is allowed to live, since the git-tracked copy stays frozen at its Step 5 skeleton (see the git-backed cross-cutting note above).
+4. Commit `clients/<slug>/setup-report.md` to git (message: session summary — smoke test outcome, first action) and tag `known-good-<slug>-<short-hash>`.
+5. Ask the implementer, once, whether to push everything committed this session to `origin` (Flow 5.3's commit, any Flow 5.4 Voice-edit commit, and this report commit). Push only on explicit yes.
+6. Update `clients/<slug>/.session-progress.md`: append `Session complete: total <elapsed since the session-start time> vs 90 min target` and set `Current flow: complete`.
 
 `[Implementer only]` If this is a full "start setup" session, note the phase timer result for Training + close (elapsed vs. 35 min combined target) alongside the total. See Invocation's "Phase timer" and "Session progress checkpoints."
 
+## Flow 5.6 — Reconfiguration (post go-live)
+
+Runs standalone, post-go-live, whenever "drafts approved without edits" drops or the client requests a change. Requires `clients/<slug>/` to already exist with all four files. Not part of the 90-minute session chain — no phase timer note, no `.session-progress.md` checkpoint (see "What this phase does NOT do").
+
+### Step 1 — Scope the change
+
+Ask what's changing and why. Restrict edits to **PROFILE.md or BOUNDARIES.md only** — same restriction as Flow 5.3 Step 1: CLAUDE.md is fixed policy (never customized), STATE.md is live-managed by the deployed agent itself, not by this tool. A request to change either of those two is out of scope for this flow; say so and stop.
+
+### Step 2 — Diff and validate
+
+Apply the requested edit, then run Flow 5.3's **Step 2 (Diff display)** and **Step 3 (Blocking validations)** exactly as written there — same three checks (empty brackets, connector match if BOUNDARIES.md changed, fixed-policy sections untouched), same "list every violation in one pass" behavior. Do not restate that logic here; point back to Flow 5.3.
+
+### Step 3 — Approval gate
+
+Same pattern as Flow 5.3 Step 4: if validations pass, ask the implementer for explicit written approval before writing. If they fail, show the violation list and stop — no approval prompt offered.
+
+### Step 4 — Write, log, commit
+
+On explicit approval:
+
+1. Write the changed file into `clients/<slug>/`.
+2. Save a snapshot of all four current files into `clients/<slug>/.snapshots/` (FR-13, local half).
+3. Append a Lessons Log entry to the client's **live** `STATE.md` — what changed and why (PRD 5.6: "record what changed and why in the STATE.md Lessons Log"). This is local only; STATE.md is never committed to git (see the git-backed cross-cutting note above).
+4. Commit only the file(s) actually changed (PROFILE.md and/or BOUNDARIES.md — never STATE.md) to git, message stating what changed and why. Tag `known-good-<slug>-<short-hash>`.
+5. Update the client's `registry.md` row (Last Updated, Status).
+6. Ask the implementer, once, whether to push this commit to `origin`. Push only on explicit yes.
+
+### Output contract
+
+```
+Reconfiguration — <client>
+Changed: <PROFILE.md | BOUNDARIES.md>
+What changed: <summary>
+Why: <client request | drafts-approved-without-edits drop>
+
+Validation: passed
+Committed: <short-hash>, tagged known-good-<slug>-<short-hash>
+Pushed to origin: <yes | not yet>
+```
+
+## FR-10 — Template version bump and stale-client list
+
+Standalone operation, not tied to any one client. Triggered by "bump template version to [X.Y]" or "check for stale clients."
+
+### Step 1 — Confirm the change
+
+Show `git diff template-v<current> -- template/` (find `<current>` via `git tag -l "template-v*" --sort=-v:refname | head -1`) so the implementer confirms what's actually different before tagging anything.
+
+### Step 2 — Commit and tag
+
+Commit the `template/` change (message: what changed and why) and tag the new version `template-v<X.Y>` (implementer states the number — no auto-computed semver logic here).
+
+### Step 3 — Stale-client list
+
+Read every row in `registry.md`. Any row whose Template Version is older than the new tag is stale. For each stale client, show `git diff <their-tag> <new-tag> -- template/` — same per-section diff shape Flow 5.3's Step 2 already uses, so the implementer sees exactly what a later Flow 5.6 update to that client would need to apply.
+
+### Step 4 — Present, do not apply
+
+Present the stale-client list with each diff. **Do not touch any client's files here** — PRD 5.6: "Applying to a client is always manual, never automatic." Applying a template update to a specific client is a separate, later Flow 5.6 invocation for that client.
+
+### Step 5 — Push
+
+Ask the implementer, once, whether to push the new tag/commit to `origin`. Push only on explicit yes.
+
+## FR-14 — Restore to known-good
+
+Standalone, post-go-live. Triggered by "restore [name] to known-good." Requires `clients/<slug>/.snapshots/` to already contain a saved snapshot (written by Flow 5.3 Step 5, a passed Flow 5.4 rerun, Flow 5.5 Step 4, or Flow 5.6 Step 4).
+
+This path **never touches git** — PRD 5.6: "the client must never need credentials to TriFold's repo, so restore is dual-layer... the local snapshot is the client's safety net." Restore reads and writes only `clients/<slug>/` and its `.snapshots/` subfolder.
+
+### Step 1 — Diff against the snapshot
+
+Compare the current `clients/<slug>/{CLAUDE,PROFILE,BOUNDARIES,STATE}.md` against the corresponding files in `.snapshots/`.
+
+### Step 2 — Show the difference in Hebrew
+
+Present what's different in plain Hebrew (FR-12: client-facing) — describe the change in business terms (e.g. "הטון בתשובות שונה מהגרסה השמורה"), not a raw text diff.
+
+### Step 3 — Restore on confirmation
+
+Restore only after the client's explicit confirmation — same reflect-and-confirm pattern used throughout. No restore on silence or an ambiguous reply.
+
+### Step 4 — Log, no new snapshot
+
+On a confirmed restore only (if the client declined in Step 3, stop there — no log entry, no further action): append a short Lessons Log line to the live `STATE.md`: what broke, what was restored, when. Local only, same rule as Flow 5.6 Step 4. No new snapshot is needed — the restored state already equals the existing snapshot. No git operation happens at any point in this flow.
+
+### Output contract
+
+```
+Restore to known-good — <client>
+Differences found: <file>: <plain-Hebrew description>
+Restored: <yes, on client confirmation | no, client declined>
+```
+
 ## What this phase does NOT do
 
-- Does not implement Flow 5.6 (reconfiguration, post go-live) — PRD §12 places this in v0.1.
-- Does not tag a `known-good` commit, or do anything else git-related (the other half of FR-13, and FR-10) — this working directory is not a git repository yet; that is a prerequisite gap, not something to fake here. This is now the only thing standing between this skill and full v0 FR coverage.
-- Does not commit anything to git — same reason.
-- Does not implement "restore to known-good" (FR-14) — PRD §12 places this in v0.1, after Flow 5.6.
+- Does not run Flow 5.6, the FR-10 template-version-bump operation, or FR-14 restore inside the 90-minute session chain — all three are standalone, post-go-live operations with their own trigger phrases, and none of them write a phase timer note or a `.session-progress.md` checkpoint (those are scoped to the initial setup session in §2/FR-11).
+- Does not auto-apply a template update to any client — FR-10's stale-client list is informational; applying is always a separate, manual, per-client Flow 5.6 invocation (PRD 5.6).
+- Does not commit `STATE.md` to git more than once (at Flow 5.3's write, while still skeleton) — its real content, from Flow 5.5 onward, lives only in the local Cowork copy and `.snapshots/`, never in a git commit (PRD §7 NFR: no client STATE.md content in the repo).
+- Does not push to `origin` automatically anywhere — every flow that commits locally ends with one explicit push prompt, never a silent push.
+- Does not use git in the FR-14 restore path at all — restore is local-snapshot-only by design, so the client never needs TriFold repo credentials.
+- Does not build v1's self-serve flow (client runs intake alone, async implementer approval) — PRD §11 places that after five pilot clients, as a separate decision.
 - Does not poll a real system clock — the phase timer (FR-11) is implementer-cooperative: it relies on the implementer stating the current time at phase boundaries, since a plain-instructions skill has no autonomous clock access.
 - Does not simulate an actual dropped connection for resume-on-interruption — resume is verified by pre-seeding `.session-progress.md` mid-flow and confirming the next invocation reads it correctly, not by an unrecoverable session crash.
 
@@ -401,6 +507,43 @@ Run this after any edit to Flow 5.5:
 3. Confirm the report's closing line states it stays between TriFold and the client and is never sent to the client's IT. This is the FR-9 acceptance check.
 4. Confirm `registry.md`'s existing row for the client is updated (not duplicated) and that `clients/<slug>/.snapshots/` contains a copy of all four files, now including STATE.md's real post-training content.
 
+## Self-test walkthrough (FR-13 git-tag half acceptance)
+
+Run this after any edit to the git-backed steps in Flow 5.3 Step 5, Flow 5.4 Step 4, or Flow 5.5 Step 4:
+
+1. Run Flow 5.3's write for a fake client. Confirm `git log` shows a new commit touching exactly `clients/<slug>/CLAUDE.md`, `PROFILE.md`, `BOUNDARIES.md`, `STATE.md`, and `git tag -l "known-good-<slug>-*"` shows exactly one new tag pointing at that commit.
+2. Confirm `registry.md`'s Template Version for this client matches the current `template-vX.Y` tag, not a placeholder string.
+3. Continue into Flow 5.4 and force a Voice-edit-then-pass on Test 2. Confirm a second commit touching only `PROFILE.md` exists, with its own `known-good-<slug>-*` tag.
+4. Continue into Flow 5.5. Confirm a third commit touching only `setup-report.md`, its own tag, and exactly **one** push prompt at the end covering all commits made this session — not one prompt per commit.
+5. Confirm at every commit that `STATE.md` is untouched after Flow 5.3's initial commit — Flow 5.4 and Flow 5.5's commits must not include it, even though the live copy on disk has real content by Flow 5.5.
+
+## Self-test walkthrough (FR-10 acceptance — template bump and stale-client list)
+
+Run this after any edit to the FR-10 section:
+
+1. Seed `registry.md` with a fake client row on `template-v1.0`. Make a deliberate change under `template/` (e.g. edit a Language Rules line). Invoke "bump template version to 1.1."
+2. Confirm Step 1 shows the actual `git diff` before anything is tagged, Step 2 creates commit + `template-v1.1` tag, and Step 3's stale-client list names the fake client (still on `v1.0`) with a diff scoped to `template/`.
+3. Confirm no file under `clients/<slug>/` for that client is modified by this operation — this is the FR-10 acceptance check ("bump template tag → tool lists affected clients with diffs," without applying anything).
+4. Confirm exactly one push prompt at the end.
+
+## Self-test walkthrough (Flow 5.6 acceptance — reconfiguration)
+
+Run this after any edit to Flow 5.6:
+
+1. Invoke "reconfigure Acme" for a fake client with existing files, requesting a Voice-section change. Confirm Step 2 reuses Flow 5.3's diff/validation exactly (test with one deliberate violation, e.g. an empty bracket — confirm it blocks with no approval prompt, same as FR-7).
+2. Re-run cleanly and approve. Confirm only `PROFILE.md` is rewritten, a Lessons Log entry appears in the live `STATE.md`, a git commit exists touching only `PROFILE.md` (not `STATE.md`), and it's tagged `known-good-<slug>-*`.
+3. Attempt "reconfigure Acme" requesting a CLAUDE.md change — confirm the flow refuses and stops at Step 1, per the fixed-policy restriction.
+4. Confirm no phase-timer note and no `.session-progress.md` update happen anywhere in this flow.
+
+## Self-test walkthrough (FR-14 acceptance — restore to known-good)
+
+Run this after any edit to the FR-14 section:
+
+1. For a fake client with an existing snapshot, manually edit `clients/<slug>/PROFILE.md` outside the tool (simulating breakage). Invoke "restore Acme to known-good."
+2. Confirm Step 2 shows the difference in Hebrew, in plain business language — not a raw diff.
+3. Decline the restore — confirm the file is left as-is and no `STATE.md` Lessons Log entry is added.
+4. Re-run and confirm the restore — confirm `PROFILE.md` now matches the snapshot exactly, a Lessons Log line is appended to `STATE.md`, and — checked directly — no `git` command of any kind ran during this flow (`git status` before/after shows no new commits, tags, or staged changes from this operation). This is the FR-14 acceptance check ("restores on confirmation, no credentials involved").
+
 ## Self-test walkthrough (FR-11 acceptance — phase timer)
 
 Run this after any edit to the Phase timer mechanism in Invocation:
@@ -431,5 +574,6 @@ Run one continuous "start setup for client [name]" session from Flow 5.1 through
 - **FR-11**: an `[Implementer only]` timer note appears at every phase boundary (end of 5.1, 5.2, 5.3, 5.4, 5.5), and none of them appear inside client-facing Hebrew text.
 - **FR-12**: every file written to `clients/<slug>/` is in English; every turn addressed to the client is in Hebrew — spot-check at least one turn from each flow.
 - **Resume bookkeeping**: `clients/<slug>/.session-progress.md` shows a checkpoint update after each flow and ends at `Current flow: complete`.
+- **FR-13**: the Flow 5.3 write produces a local git commit and a `known-good-<slug>-*` tag, and the session ends with exactly one push prompt covering every commit made.
 
-FR-10, FR-13's git-tag half, and FR-14 are out of scope for this dry run — they stay deferred pending a git repository, per "What this phase does NOT do."
+Flow 5.6, FR-10, and FR-14 are intentionally out of scope for this dry run — they're standalone, post-go-live operations outside the 90-minute session chain (see "What this phase does NOT do") and have their own dedicated self-test walkthroughs above.
