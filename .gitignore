@@ -1,1 +1,4 @@
 .DS_Store
+
+# Transient per-client session checkpoint log
+.session-progress.md
