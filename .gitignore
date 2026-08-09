@@ -2,3 +2,6 @@
 
 # Transient per-client session checkpoint log
 .session-progress.md
+
+# Per-client local recovery snapshots of the generated agent files
+.snapshots/
