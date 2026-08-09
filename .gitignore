@@ -1,7 +1,7 @@
 .DS_Store
 
-# Transient per-client session checkpoint log
-.session-progress.md
-
 # Per-client local recovery snapshots of the generated agent files
+# (SKILL.md Flow 5.5 Step 4.3 specifies these are local-only and never committed:
+#  the snapshot is where STATE.md's real content lives, while its tracked copy
+#  stays frozen at the Flow 5.3 skeleton.)
 .snapshots/
