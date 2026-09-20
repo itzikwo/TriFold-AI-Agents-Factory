@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>הבריף השבועי נכשל</title>
+<style>
+  :root { color-scheme: light; }
+  body {
+    margin: 0;
+    padding: 24px 16px;
+    background: #fff5f5;
+    font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+    color: #1a1a1a;
+    line-height: 1.6;
+  }
+  .container { max-width: 640px; margin: 0 auto; }
+  .banner {
+    background: #b91c1c;
+    color: #ffffff;
+    font-size: 1.6rem;
+    font-weight: 800;
+    text-align: center;
+    padding: 20px 12px;
+    border-radius: 8px;
+    margin-bottom: 24px;
+    letter-spacing: 0.5px;
+  }
+  h2 {
+    font-size: 1.1rem;
+    border-right: 4px solid #b91c1c;
+    padding-right: 10px;
+    margin-top: 28px;
+  }
+  ul { padding-right: 20px; }
+  li { margin-bottom: 6px; }
+  code {
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 4px;
+    direction: ltr;
+    display: inline-block;
+  }
+  .fix {
+    background: #fef3c7;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-top: 20px;
+    font-weight: 600;
+  }
+  a { color: #1d4ed8; }
+  .meta { color: #555; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="banner">WEEKLY BRIEF DID NOT RUN - NO CONNECTORS</div>
+
+  <p class="meta">תאריך ריצה: 2026-09-20</p>
+
+  <h2>מה קרה</h2>
+  <p>הריצה השבועית האוטומטית נעצרה בשלב הבדיקה הראשוני (STEP 0), לפני שנקראו קבצי הסוכן או נאסף מידע כלשהו. חיברתי בדיקה מפורשת לזמינות כלי Outlook / Microsoft 365 בסשן הזה, וכלים אלו לא היו זמינים בפועל לקריאה או לחיפוש.</p>
+
+  <h2>אילו כלים חיפשתי ולא מצאתי</h2>
+  <ul>
+    <li><code>outlook_email_search</code> - לא נמצא</li>
+    <li><code>outlook_calendar_search</code> - לא נמצא</li>
+    <li>כלי מקבילים תחת <code>mcp__Microsoft*</code> (מייל, יומן, SharePoint, OneDrive, Teams) - לא נמצאו</li>
+  </ul>
+  <p>שים לב: רשימת ה-connectors של החשבון (<code>ListConnectors</code>) מציגה את "Microsoft 365" כ-<code>connected: true</code> וגם <code>enabledInChat: true</code>, אך בפועל אף כלי מהחיבור הזה לא נטען או נענה בסשן הזה. כלומר יש פער בין מצב החיבור המדווח לבין הזמינות בפועל.</p>
+
+  <h2>מה לא נקרא</h2>
+  <ul>
+    <li>לא נקראה תיבת הדואר של איציק (Outlook) - לא לשבוע האחרון ולא בכלל</li>
+    <li>לא נקרא היומן (Outlook Calendar) - לא לשבוע הקרוב ולא בכלל</li>
+    <li>לא נבדקו תמלולי Spinach AI</li>
+    <li>לא נקראו <code>CLAUDE.md</code>, <code>PROFILE.md</code>, <code>BOUNDARIES.md</code> או <code>STATE.md</code> של הסוכן - בהתאם להוראה לעצור לפני קריאתם</li>
+  </ul>
+
+  <p><strong>הדף הזה אינו מכיל שום מידע אמיתי על השבוע של איציק.</strong> אין כאן פריטים הדורשים החלטה, אין הכנת פגישות, ואין משימה מומלצת - כי לא נאסף שום מידע אמיתי. כל תוכן כזה היה בהכרח מומצא.</p>
+
+  <div class="fix">
+    התיקון: יש לחבר מחדש את Microsoft 365 ואת Spinach AI בכתובת
+    <a href="https://claude.ai/customize/connectors">https://claude.ai/customize/connectors</a>
+    ולוודא שכלי Outlook (חיפוש מייל וחיפוש יומן) נטענים בפועל בסשן, לא רק מסומנים כ"מחובר" ברשימת ה-connectors.
+  </div>
+</div>
+</body>
+</html>
